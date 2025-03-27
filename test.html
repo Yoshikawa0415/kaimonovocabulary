@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>日语词汇背诵测验</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .question-box {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .options {
+      list-style: none;
+      padding: 0;
+    }
+    .options li {
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+    .feedback {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .wrong-word {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>日语词汇背诵测验</h1>
+  <div id="quiz-container"></div>
+  <div id="result" class="hidden">
+    <h2>测验完成！</h2>
+    <p id="score"></p>
+    <h3>错误的单词（供复习）：</h3>
+    <ul id="wrong-list"></ul>
+    <button id="restart-btn">再来一次</button>
+  </div>
+
+  <script>
+    // 词汇数据：每个对象包括：word（日语词汇，可能含汉字）、reading（假名读音）、chinese（中文释义）
+    const vocabList = [
+      { word: "電子", reading: "でんし", chinese: "电子" },
+      { word: "ほしい", reading: "ほしい", chinese: "要，想要" },
+      { word: "手紙", reading: "てがみ", chinese: "信，书信" },
+      { word: "すごい", reading: "すごい", chinese: "厉害；了不起" },
+      { word: "サービス", reading: "サービス", chinese: "服务，接待；廉价出售" },
+      { word: "商品", reading: "しょうひん", chinese: "商品" },
+      { word: "ええと", reading: "ええと", chinese: "（用于一时语塞而思考时）嗯……" },
+      { word: "店員", reading: "てんいん", chinese: "店员，售货员" },
+      { word: "中国語", reading: "ちゅうごくご", chinese: "汉语" },
+      { word: "新一", reading: "しんー", chinese: "新……" },
+      { word: "特に", reading: "とくに", chinese: "特别，格外，尤其" },
+      { word: "勧めます", reading: "すすめます", chinese: "劝说，劝告；劝诱" },
+      { word: "デザイン", reading: "デザイン", chinese: "设计，创意；图案" },
+      { word: "疲れます", reading: "つかれます", chinese: "累，疲劳，疲倦" },
+      { word: "売り場", reading: "うりば", chinese: "柜台，售货处" },
+      { word: "電気街", reading: "でんきがい", chinese: "电气街" },
+      { word: "電器屋", reading: "でんきや", chinese: "电器商店" },
+      { word: "小さい", reading: "ちいさい", chinese: "小" },
+      { word: "電気", reading: "でんき", chinese: "电器" },
+      { word: "製品", reading: "せいひん", chinese: "产品，制品" },
+      { word: "外国", reading: "がいこく", chinese: "外国" },
+      { word: "観光客", reading: "かんこうきゃく", chinese: "游客" },
+      { word: "ある", reading: "ある", chinese: "某，有的" },
+      { word: "大満足", reading: "だいまんぞく", chinese: "非常满足" },
+      { word: "秋葉原", reading: "あきはばら", chinese: "秋叶原（东京著名的电器街）" },
+      { word: "ジュース", reading: "ジュース", chinese: "果汁" },
+      { word: "相手", reading: "あいて", chinese: "对手；伙伴" },
+      { word: "誕生日", reading: "たんじょうび", chinese: "生日" },
+      { word: "自転車", reading: "じてんしゃ", chinese: "自行车" },
+      { word: "いつ", reading: "いつ", chinese: "何时，几时" },
+      { word: "デパート", reading: "デパート", chinese: "百货商店" },
+      { word: "セーター", reading: "セーター", chinese: "套头毛衣，套头衫" },
+      { word: "着ます", reading: "きます", chinese: "穿 (上衣类)" },
+      { word: "戻ります", reading: "もどります", chinese: "返回，回到" },
+      { word: "夏休み", reading: "なつやすみ", chinese: "暑假" },
+      { word: "山", reading: "やま", chinese: "山" },
+      { word: "休み", reading: "やすみ", chinese: "休息；休假，假日；缺席" },
+      { word: "日", reading: "ひ", chinese: "太阳；天，一天" },
+      { word: "お金", reading: "おかね", chinese: "钱，钱财" },
+      { word: "携帯", reading: "けいたい", chinese: "手机；携带" }
+    ];
+    
+    // 判断词汇是否为全平假名或全片假名
+    function isAllKana(str) {
+      // 平假名：3040-309F, 片假名：30A0-30FF
+      return /^[\u3040-\u30FF]+$/.test(str);
+    }
+    
+    // 为每个词汇添加 isComplex 字段（如果含有非假名字符，则视为复杂，即有汉字）
+    vocabList.forEach(item => {
+      item.isComplex = !isAllKana(item.word);
+    });
+    
+    // 从数组中随机取 n 个不重复的元素
+    function getRandomElements(arr, n) {
+      const shuffled = arr.slice().sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, n);
+    }
+    
+    // 用于生成【单词选择】题目的干扰选项：
+    // 尝试从同一类别中（复杂或全假名）且长度相同的词中选取
+    function generateWordDistractors(correctItem, vocabPool) {
+      let candidates = vocabPool.filter(item => {
+        return item.isComplex === correctItem.isComplex &&
+               item.word.length === correctItem.word.length &&
+               item.word !== correctItem.word;
+      });
+      if (candidates.length < 3) {
+        // 如果不足，则放宽条件：只要求同一类别
+        candidates = vocabPool.filter(item => item.isComplex === correctItem.isComplex && item.word !== correctItem.word);
+      }
+      // 随机选取3个
+      const distractors = getRandomElements(candidates, 3).map(item => item.word);
+      return distractors;
+    }
+    
+    // 用于生成【假名选择】题目的干扰选项：基于正确读音进行轻微修改
+    const similarKanaMap = {
+      'か': ['が'], 'が': ['か'],
+      'き': ['ぎ'], 'ぎ': ['き'],
+      'く': ['ぐ'], 'ぐ': ['く'],
+      'け': ['げ'], 'げ': ['け'],
+      'こ': ['ご'], 'ご': ['こ'],
+      'さ': ['ざ'], 'ざ': ['さ'],
+      'し': ['じ'], 'じ': ['し', 'ち'],
+      'す': ['ず'], 'ず': ['す'],
+      'せ': ['ぜ'], 'ぜ': ['せ'],
+      'そ': ['ぞ'], 'ぞ': ['そ'],
+      'た': ['だ'], 'だ': ['た'],
+      'ち': ['ぢ','じ'], 'ぢ': ['ち'],
+      'つ': ['づ'], 'づ': ['つ'],
+      'は': ['ば','ぱ'], 'ば': ['は','ぱ'], 'ぱ': ['は','ば'],
+      'い': ['え'], 'え': ['い'],
+      // 拨音和长音的处理稍后在函数中考虑
+    };
+    
+    // 随机对一个假名字符做替换
+    function mutateKana(char) {
+      if (similarKanaMap[char]) {
+        const arr = similarKanaMap[char];
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+      return char;
+    }
+    
+    // 根据正确读音生成3个干扰选项
+    function generateReadingDistractors(correctReading) {
+      const distractors = new Set();
+      let attempts = 0;
+      while(distractors.size < 3 && attempts < 10) {
+        attempts++;
+        // 随机决定操作：1 替换；2 长音变化；3 位置替换
+        const op = Math.floor(Math.random() * 3);
+        let candidate = correctReading;
+        if (op === 0) {
+          // 随机位置替换一个假名（如果该位置在映射中）
+          const pos = Math.floor(Math.random() * candidate.length);
+          const char = candidate[pos];
+          const newChar = mutateKana(char);
+          if(newChar !== char) {
+            candidate = candidate.slice(0, pos) + newChar + candidate.slice(pos+1);
+          }
+        } else if (op === 1) {
+          // 对长音“ー”的处理：如果已有“ー”则去掉，否则随机在末尾添加
+          if (candidate.includes("ー")) {
+            candidate = candidate.replace("ー", "");
+          } else {
+            candidate = candidate + "ー";
+          }
+        } else {
+          // 交换两个相邻字符（仅当长度>=2时）
+          if (candidate.length >= 2) {
+            const pos = Math.floor(Math.random() * (candidate.length - 1));
+            candidate = candidate.substring(0, pos) + candidate[pos+1] + candidate[pos] + candidate.substring(pos+2);
+          }
+        }
+        // 确保 candidate 与正确答案不同且符合日语假名习惯（只含平假名、片假名或长音符号）
+        if (candidate !== correctReading && /^[\u3040-\u30FFー]+$/.test(candidate)) {
+          distractors.add(candidate);
+        }
+      }
+      // 如果生成不足，则用简单添加或删除“ー”
+      while(distractors.size < 3) {
+        let candidate = correctReading.includes("ー") ? correctReading.replace("ー", "") : correctReading + "ー";
+        distractors.add(candidate);
+      }
+      return Array.from(distractors);
+    }
+    
+    // 生成测验题目数组，每个词汇可能对应一个或两个题目
+    // 题目对象格式： { type: "word"|"reading", prompt, correct, options, vocabItem }
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let wrongItems = []; // 收集错误的词汇记录（若一个词汇的任一题错误，则记入一次）
+    
+    function generateQuestions() {
+      questions = [];
+      // 随机选择25个单词
+      const selectedVocabs = getRandomElements(vocabList, 25);
+      selectedVocabs.forEach(item => {
+        // 第一题：根据中文释义选择正确的日语词汇
+        const wordDistractors = generateWordDistractors(item, vocabList);
+        const wordOptions = [item.word, ...wordDistractors];
+        // 打乱选项顺序
+        const shuffledWordOptions = wordOptions.sort(() => 0.5 - Math.random());
+        questions.push({
+          type: "word",
+          prompt: `【单词选择】请根据中文释义“${item.chinese}”选择正确的日语词汇：`,
+          correct: item.word,
+          options: shuffledWordOptions,
+          vocabItem: item
+        });
+        // 如果该单词含有汉字，则再出一道【假名选择】题
+        if(item.isComplex) {
+          const readingDistractors = generateReadingDistractors(item.reading);
+          const readingOptions = [item.reading, ...readingDistractors];
+          const shuffledReadingOptions = readingOptions.sort(() => 0.5 - Math.random());
+          questions.push({
+            type: "reading",
+            prompt: `【假名选择】请为日语词汇“${item.word}”选择正确的假名读音：`,
+            correct: item.reading,
+            options: shuffledReadingOptions,
+            vocabItem: item
+          });
+        }
+      });
+      // 重置索引和分数
+      currentQuestionIndex = 0;
+      score = 0;
+      wrongItems = [];
+    }
+    
+    const quizContainer = document.getElementById("quiz-container");
+    const resultContainer = document.getElementById("result");
+    const scoreDisplay = document.getElementById("score");
+    const wrongList = document.getElementById("wrong-list");
+    const restartBtn = document.getElementById("restart-btn");
+    
+    function showQuestion() {
+      quizContainer.innerHTML = "";
+      if (currentQuestionIndex >= questions.length) {
+        // 测验结束
+        showResult();
+        return;
+      }
+      const q = questions[currentQuestionIndex];
+      const box = document.createElement("div");
+      box.className = "question-box";
+      
+      const prompt = document.createElement("p");
+      prompt.innerHTML = q.prompt;
+      box.appendChild(prompt);
+      
+      const ul = document.createElement("ul");
+      ul.className = "options";
+      q.options.forEach(option => {
+        const li = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.textContent = option;
+        btn.addEventListener("click", () => {
+          if (option === q.correct) {
+            box.querySelector(".feedback")?.remove();
+            const fb = document.createElement("div");
+            fb.className = "feedback";
+            fb.textContent = "正确！";
+            box.appendChild(fb);
+            score += 4;
+          } else {
+            box.querySelector(".feedback")?.remove();
+            const fb = document.createElement("div");
+            fb.className = "feedback wrong-word";
+            fb.textContent = `错误！正确答案是：${q.correct}`;
+            box.appendChild(fb);
+            // 将该词汇记录到错误本中（避免重复记录）
+            if(!wrongItems.find(item => item.word === q.vocabItem.word)){
+              wrongItems.push(q.vocabItem);
+            }
+          }
+          // 0.8秒后自动进入下一题
+          setTimeout(() => {
+            currentQuestionIndex++;
+            showQuestion();
+          }, 800);
+        });
+        li.appendChild(btn);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      quizContainer.appendChild(box);
+    }
+    
+    function showResult() {
+      quizContainer.classList.add("hidden");
+      resultContainer.classList.remove("hidden");
+      scoreDisplay.textContent = `总得分：${score} 分，共 ${questions.length} 题。`;
+      wrongList.innerHTML = "";
+      if(wrongItems.length === 0){
+        wrongList.innerHTML = "<li>无错误，恭喜！</li>";
+      } else {
+        wrongItems.forEach(item => {
+          const li = document.createElement("li");
+          // 显示中文释义、日语词汇和假名读音
+          li.textContent = `${item.chinese} —— ${item.word} [${item.reading}]`;
+          wrongList.appendChild(li);
+        });
+      }
+    }
+    
+    restartBtn.addEventListener("click", () => {
+      resultContainer.classList.add("hidden");
+      quizContainer.classList.remove("hidden");
+      generateQuestions();
+      showQuestion();
+    });
+    
+    // 开始测验
+    generateQuestions();
+    showQuestion();
+  </script>
+</body>
+</html>
